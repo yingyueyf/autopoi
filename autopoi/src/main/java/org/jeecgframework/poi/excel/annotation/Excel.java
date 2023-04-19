@@ -57,6 +57,12 @@ public @interface Excel {
 	public int imageType() default 3;
 
 	/**
+	 * 导出图片缩放百分比，值范围：大于0的整数，小于100是缩小，大于100是放大
+	 *
+	 * @return
+	 */
+	public int imageZoomPercent();
+	/**
 	 * 导入的时间格式,以这个是否为空来判断是否需要格式化日期
 	 */
 	public String importFormat() default "";

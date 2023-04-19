@@ -40,6 +40,7 @@ public class ExcelExportEntity extends ExcelBaseEntity implements Comparable<Exc
 	 */
 	private int exportImageType = 3;
 
+	private int exportImageZoomPercent = 0;
 	/**
 	 * 图片储存位置(磁盘目录) 用于导出获取图片绝对路径
 	 */
@@ -133,6 +134,9 @@ public class ExcelExportEntity extends ExcelBaseEntity implements Comparable<Exc
 		return exportImageType;
 	}
 
+	public int getExportImageZoomPercent(){
+		return exportImageZoomPercent;
+	}
 	public double getHeight() {
 		return height;
 	}
@@ -173,6 +177,9 @@ public class ExcelExportEntity extends ExcelBaseEntity implements Comparable<Exc
 		this.exportImageType = exportImageType;
 	}
 
+	public void setExportImageZoomPercent(int exportImageZoomPercent){
+		this.exportImageZoomPercent = exportImageZoomPercent;
+	}
 	public void setHeight(double height) {
 		this.height = height;
 	}

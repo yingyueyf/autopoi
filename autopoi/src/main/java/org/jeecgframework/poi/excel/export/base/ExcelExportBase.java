@@ -41,10 +41,7 @@ import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
 import java.awt.image.BufferedImage;
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.security.SecureRandom;
@@ -288,6 +285,21 @@ public abstract class ExcelExportBase extends ExportBase {
 			}
 		}
 		if (value != null) {
+			//update-begin-author:z date:20230419 for:获取图片宽高，按注解给定比例缩放
+			if (entity.getExportImageZoomPercent() > 0){
+				double imageZoomPercent = entity.getExportImageZoomPercent() / 100;
+				ByteArrayInputStream in = new ByteArrayInputStream(value);
+				BufferedImage sourceImg = ImageIO.read(in);
+				int width = (int) (sourceImg.getWidth() * imageZoomPercent);
+				int height = (int) (sourceImg.getHeight() * imageZoomPercent);
+				BufferedImage newImg = new BufferedImage(height,width,sourceImg.getType());
+
+				ByteArrayOutputStream out = new ByteArrayOutputStream();
+				String type = PoiPublicUtil.getFileExtendName(value);
+				ImageIO.write(sourceImg, type, out);
+				value=out.toByteArray();
+			}
+			//update-end-author:z date:20230419 for:获取图片宽高，按注解给定比例缩放
 			patriarch.createPicture(anchor, row.getSheet().getWorkbook().addPicture(value, getImageType(value)));
 		}
 		//update-end-author:taoyan date:20200302 for:【多任务】online 专项集中问题 LOWCOD-159
