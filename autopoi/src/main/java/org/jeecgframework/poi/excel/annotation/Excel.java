@@ -61,7 +61,7 @@ public @interface Excel {
 	 *
 	 * @return
 	 */
-	public int imageZoomPercent();
+	public int imageZoomPercent() default 0;
 	/**
 	 * 导入的时间格式,以这个是否为空来判断是否需要格式化日期
 	 */

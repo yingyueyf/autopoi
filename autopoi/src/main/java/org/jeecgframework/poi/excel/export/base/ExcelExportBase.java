@@ -40,6 +40,7 @@ import javax.imageio.ImageIO;
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
+import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.*;
 import java.net.HttpURLConnection;
@@ -47,6 +48,7 @@ import java.net.URL;
 import java.security.SecureRandom;
 import java.text.DecimalFormat;
 import java.util.*;
+import java.util.List;
 
 /**
  * 提供POI基础操作服务
@@ -286,21 +288,23 @@ public abstract class ExcelExportBase extends ExportBase {
 		}
 		if (value != null) {
 			//update-begin-author:z date:20230419 for:获取图片宽高，按注解给定比例缩放
+			ByteArrayInputStream in = new ByteArrayInputStream(value);
+			BufferedImage sourceImg = ImageIO.read(in);
 			if (entity.getExportImageZoomPercent() > 0){
-				double imageZoomPercent = entity.getExportImageZoomPercent() / 100;
-				ByteArrayInputStream in = new ByteArrayInputStream(value);
-				BufferedImage sourceImg = ImageIO.read(in);
+				double imageZoomPercent = (double)entity.getExportImageZoomPercent() / (double)100;
 				int width = (int) (sourceImg.getWidth() * imageZoomPercent);
 				int height = (int) (sourceImg.getHeight() * imageZoomPercent);
-				BufferedImage newImg = new BufferedImage(height,width,sourceImg.getType());
-
+				BufferedImage targetImg = new BufferedImage(width,height,sourceImg.getType());
+				Graphics2D g2d = targetImg.createGraphics();
+				g2d.drawImage(sourceImg, 0, 0, width, height, null);
+				g2d.dispose();
 				ByteArrayOutputStream out = new ByteArrayOutputStream();
 				String type = PoiPublicUtil.getFileExtendName(value);
-				ImageIO.write(sourceImg, type, out);
+				ImageIO.write(targetImg, type, out);
 				value=out.toByteArray();
 			}
 			//update-end-author:z date:20230419 for:获取图片宽高，按注解给定比例缩放
-			patriarch.createPicture(anchor, row.getSheet().getWorkbook().addPicture(value, getImageType(value)));
+			patriarch.createPicture(anchor, row.getSheet().getWorkbook().addPicture(value, getImageType(value))).resize();
 		}
 		//update-end-author:taoyan date:20200302 for:【多任务】online 专项集中问题 LOWCOD-159
 

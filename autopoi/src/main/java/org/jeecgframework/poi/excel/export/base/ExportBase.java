@@ -344,7 +344,7 @@ public class ExportBase {
 		}
 		//update-end-author:taoyan date:20200319 for:autopoi 双表头问题 #862 基于实体注解的解决方案
 		//update-begin-author:z date:20230419 for:获取图片宽高，按注解给定比例缩放
-		excelEntity.setExportImageZoomPercent(excel.imagePercent());
+		excelEntity.setExportImageZoomPercent(excel.imageZoomPercent());
 		//update-end-author:z date:20230419 for:获取图片宽高，按注解给定比例缩放
 
 	}
