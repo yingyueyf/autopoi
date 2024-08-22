@@ -23,7 +23,6 @@ import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.xssf.usermodel.XSSFClientAnchor;
 import org.apache.poi.xssf.usermodel.XSSFRichTextString;
-import org.jeecgframework.poi.excel.ExcelImportUtil;
 import org.jeecgframework.poi.excel.entity.enmus.ExcelType;
 import org.jeecgframework.poi.excel.entity.params.ExcelExportEntity;
 import org.jeecgframework.poi.excel.entity.vo.PoiBaseConstants;
@@ -214,11 +213,10 @@ public abstract class ExcelExportBase extends ExportBase {
 	 * @throws Exception
 	 */
 	public void createImageCell(Drawing patriarch, ExcelExportEntity entity, Row row, int i, String imagePath, Object obj) throws Exception {
-		row.setHeight((short) (50 * entity.getHeight()));
 		row.createCell(i);
 		ClientAnchor anchor;
 		if (type.equals(ExcelType.HSSF)) {
-			anchor = new HSSFClientAnchor(0, 0, 0, 0, (short) i, row.getRowNum(), (short) (i + 1), row.getRowNum() + 1);
+			anchor = new HSSFClientAnchor(0, 0, 1023, 255, (short) i, row.getRowNum(), (short) i, row.getRowNum());
 		} else {
 			anchor = new XSSFClientAnchor(0, 0, 0, 0, (short) i, row.getRowNum(), (short) (i + 1), row.getRowNum() + 1);
 		}
@@ -287,24 +285,17 @@ public abstract class ExcelExportBase extends ExportBase {
 			}
 		}
 		if (value != null) {
-			//update-begin-author:z date:20230419 for:获取图片宽高，按注解给定比例缩放
-			ByteArrayInputStream in = new ByteArrayInputStream(value);
-			BufferedImage sourceImg = ImageIO.read(in);
-			if (entity.getExportImageZoomPercent() > 0){
-				double imageZoomPercent = (double)entity.getExportImageZoomPercent() / (double)100;
-				int width = (int) (sourceImg.getWidth() * imageZoomPercent);
-				int height = (int) (sourceImg.getHeight() * imageZoomPercent);
-				BufferedImage targetImg = new BufferedImage(width,height,sourceImg.getType());
-				Graphics2D g2d = targetImg.createGraphics();
-				g2d.drawImage(sourceImg, 0, 0, width, height, null);
-				g2d.dispose();
-				ByteArrayOutputStream out = new ByteArrayOutputStream();
-				String type = PoiPublicUtil.getFileExtendName(value);
-				ImageIO.write(targetImg, type, out);
-				value=out.toByteArray();
-			}
-			//update-end-author:z date:20230419 for:获取图片宽高，按注解给定比例缩放
-			patriarch.createPicture(anchor, row.getSheet().getWorkbook().addPicture(value, getImageType(value))).resize();
+			//update-begin-author:z date:20240727 for:获取图片宽高，按注解给定比例缩放
+
+			int imgHeight = ImageIO.read(new ByteArrayInputStream(value)).getHeight();
+			int imgWidth = ImageIO.read(new ByteArrayInputStream(value)).getWidth();
+
+			imgHeight = (int) Math.round((imgHeight * (30 * 13) * 1.0 / imgWidth));
+			row.getSheet().setColumnWidth(i, 30 * 256);
+			row.setHeight((short) (imgHeight / 2 * 18));
+			anchor.setAnchorType(ClientAnchor.AnchorType.DONT_MOVE_AND_RESIZE);
+			//update-end-author:z date:20240727 for:获取图片宽高，按注解给定比例缩放
+			patriarch.createPicture(anchor, row.getSheet().getWorkbook().addPicture(value, getImageType(value)));
 		}
 		//update-end-author:taoyan date:20200302 for:【多任务】online 专项集中问题 LOWCOD-159
 
@@ -660,7 +651,7 @@ public abstract class ExcelExportBase extends ExportBase {
 							 short rowHeight, int cellNum) {
 		try {
 			ExcelExportEntity entity;
-			Row               row = sheet.getRow(index) == null ? sheet.createRow(index) : sheet.getRow(index);
+			Row row = sheet.getRow(index) == null ? sheet.createRow(index) : sheet.getRow(index);
 			if (rowHeight != -1) {
 				row.setHeight(rowHeight);
 			}
