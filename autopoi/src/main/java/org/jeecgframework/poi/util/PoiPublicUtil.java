@@ -441,7 +441,7 @@ public final class PoiPublicUtil {
 	 */
 	@SuppressWarnings("rawtypes")
 	public static Object getParamsValue(String params, Object object) throws Exception {
-		if (params.indexOf(".") != -1) {
+		if (params.contains(".")) {
 			String[] paramsArr = params.split("\\.");
 			return getValueDoWhile(object, paramsArr, 0);
 		}

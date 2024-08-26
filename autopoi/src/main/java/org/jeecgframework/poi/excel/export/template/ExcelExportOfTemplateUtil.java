@@ -73,7 +73,6 @@ public final class ExcelExportOfTemplateUtil extends ExcelExportBase {
 	/**
 	 * 往Sheet 填充正常数据,根据表头信息 使用导入的部分逻辑,坐对象映射
 	 *
-	 * @param teplateParams
 	 * @param pojoClass
 	 * @param dataSet
 	 * @param workbook
@@ -117,7 +116,7 @@ public final class ExcelExportOfTemplateUtil extends ExcelExportBase {
 	/**
 	 * 下移数据
 	 *
-	 * @param its
+	 * @param dataSet
 	 * @param excelParams
 	 * @return
 	 */
@@ -134,8 +133,8 @@ public final class ExcelExportOfTemplateUtil extends ExcelExportBase {
 	/**
 	 * 获取单个对象的高度,主要是处理一堆多的情况
 	 *
-	 * @param styles
-	 * @param rowHeight
+	 * @param t
+	 * @param excelParams
 	 * @throws Exception
 	 */
 	public int getOneObjectSize(Object t, List<ExcelExportEntity> excelParams) throws Exception {
@@ -172,7 +171,7 @@ public final class ExcelExportOfTemplateUtil extends ExcelExportBase {
 					wb.setSheetName(i, params.getSheetName()[i]);
 				}
 				tempCreateCellSet.clear();
-				parseTemplate(wb.getSheetAt(i), map, params.isColForEach());
+				parseTemplate(wb.getSheetAt(i), map, params);
 			}
 			if (dataSet != null) {
 				// step 4. 正常的数据填充
@@ -192,7 +191,6 @@ public final class ExcelExportOfTemplateUtil extends ExcelExportBase {
 	/**
 	 * 克隆excel防止操作原对象,workbook无法克隆,只能对excel进行克隆
 	 *
-	 * @param teplateParams
 	 * @throws Exception
 	 * @Author JEECG
 	 * @date 2013-11-11
@@ -206,7 +204,6 @@ public final class ExcelExportOfTemplateUtil extends ExcelExportBase {
 	/**
 	 * 获取表头数据,设置表头的序号
 	 *
-	 * @param teplateParams
 	 * @param sheet
 	 * @return
 	 */
@@ -231,12 +228,13 @@ public final class ExcelExportOfTemplateUtil extends ExcelExportBase {
 
 	}
 
-	private void parseTemplate(Sheet sheet, Map<String, Object> map, boolean colForeach) throws Exception {
+	private void parseTemplate(Sheet sheet, Map<String, Object> map, TemplateExportParams params) throws Exception {
+		boolean colForeach = params.isColForEach();
 		deleteCell(sheet, map);
 		//update-begin-author:liusq---date:20220527--for: 模板导出列循环核心代码 ---
 		mergedRegionHelper = new MergedRegionHelper(sheet);
 		if (colForeach) {
-			colForeach(sheet, map);
+			colForeach(sheet, map, params);
 		}
 		//update-end-author:liusq---date:20220527--for: 模板导出列循环核心代码 ---
 		Row row = null;
@@ -300,7 +298,7 @@ public final class ExcelExportOfTemplateUtil extends ExcelExportBase {
 		String oldString;
 		cell.setCellType(CellType.STRING);
 		oldString = cell.getStringCellValue();
-		if (oldString != null && oldString.indexOf(START_STR) != -1 && !oldString.contains(FOREACH)) {
+		if (oldString != null && oldString.contains(START_STR) && !oldString.contains(FOREACH)) {
 			// step 2. 判断是否含有解析函数
 			String params = null;
 			boolean isNumber = false;
@@ -308,7 +306,7 @@ public final class ExcelExportOfTemplateUtil extends ExcelExportBase {
 				isNumber = true;
 				oldString = oldString.replace(NUMBER_SYMBOL, "");
 			}
-			while (oldString.indexOf(START_STR) != -1) {
+			while (oldString.contains(START_STR)) {
 				params = oldString.substring(oldString.indexOf(START_STR) + 2, oldString.indexOf(END_STR));
 
 				oldString = oldString.replace(START_STR + params + END_STR, eval(params, map).toString());
@@ -337,14 +335,14 @@ public final class ExcelExportOfTemplateUtil extends ExcelExportBase {
 	 *
 	 * @param cell
 	 * @param map
-	 * @param oldString
+	 * @param name
 	 * @throws Exception
 	 */
 	private void addListDataToExcel(Cell cell, Map<String, Object> map, String name) throws Exception {
 		boolean isCreate = !name.contains(FOREACH_NOT_CREATE);
 		boolean isShift = name.contains(FOREACH_AND_SHIFT);
 		name = name.replace(FOREACH_NOT_CREATE, EMPTY).replace(FOREACH_AND_SHIFT, EMPTY).replace(FOREACH, EMPTY).replace(START_STR, EMPTY);
-		String[] keys = name.replaceAll("\\s{1,}", " ").trim().split(" ");
+		String[] keys = name.replaceAll("\\s+", " ").trim().split(" ");
 		Collection<?> datas = (Collection<?>) PoiPublicUtil.getParamsValue(keys[0], map);
      //update-begin-author:liusq---date:20220609--for: [issues/3328]autopoi模板导出Excel功能，$fe: 遍历不好用 ---
 		Object[] columnsInfo = getAllDataColumns(cell, name.replace(keys[0], EMPTY),
@@ -504,7 +502,7 @@ public final class ExcelExportOfTemplateUtil extends ExcelExportBase {
 	 * @param sheet
 	 * @param map
 	 */
-	private void colForeach(Sheet sheet, Map<String, Object> map) throws Exception {
+	private void colForeach(Sheet sheet, Map<String, Object> map,TemplateExportParams params) throws Exception {
 		Row  row   = null;
 		Cell cell  = null;
 		int  index = 0;
@@ -519,7 +517,7 @@ public final class ExcelExportOfTemplateUtil extends ExcelExportBase {
 						|| cell.getCellType() == CellType.NUMERIC)) {
 					String text = PoiCellUtil.getCellValue(cell);
 					if (text.contains(FOREACH_COL) || text.contains(FOREACH_COL_VALUE)) {
-						foreachCol(cell, map, text);
+						foreachCol(cell, map, text,params);
 					}
 				}
 			}
@@ -534,11 +532,11 @@ public final class ExcelExportOfTemplateUtil extends ExcelExportBase {
 	 * @param name
 	 * @throws Exception
 	 */
-	private void foreachCol(Cell cell, Map<String, Object> map, String name) throws Exception {
+	private void foreachCol(Cell cell, Map<String, Object> map, String name,TemplateExportParams params) throws Exception {
 		boolean isCreate = name.contains(FOREACH_COL_VALUE);
 		name = name.replace(FOREACH_COL_VALUE, EMPTY).replace(FOREACH_COL, EMPTY).replace(START_STR,
 				EMPTY);
-		String[]      keys  = name.replaceAll("\\s{1,}", " ").trim().split(" ");
+		String[] keys  = name.replaceAll("\\s+", " ").trim().split(" ");
 		Collection<?> datas = (Collection<?>) PoiPublicUtil.getParamsValue(keys[0], map);
 		Object[] columnsInfo = getAllDataColumns(cell, name.replace(keys[0], EMPTY),
 				mergedRegionHelper);
@@ -563,6 +561,72 @@ public final class ExcelExportOfTemplateUtil extends ExcelExportBase {
 			cell.setCellValue(cell.getStringCellValue() + END_STR);
 		}
 	}
+
+	/**
+	 * 先进行列的循环,因为涉及很多数据
+	 *
+	 * @param row
+	 * @param t
+	 */
+	private void colForeachChild(Row row, Object t,TemplateExportParams params) throws Exception {
+		Cell cell  = null;
+		int  index = 0;
+//		while (index <= sheet.getLastRowNum()) {
+//			row = sheet.getRow(index++);
+			if (row == null) {
+				return;
+			}
+			for (int i = row.getFirstCellNum(); i < row.getLastCellNum(); i++) {
+				cell = row.getCell(i);
+				if (row.getCell(i) != null && (cell.getCellType() == CellType.STRING
+						|| cell.getCellType() == CellType.NUMERIC)) {
+					String text = PoiCellUtil.getCellValue(cell);
+					if (text.contains(FOREACH_COL_CHILD)) {
+						foreachColChild(cell, new HashMap<>(), text,params);
+					}
+				}
+			}
+//		}
+	}
+
+	/**
+	 * 循环列表（子列表循环列）
+	 *
+	 * @param cell
+	 * @param map
+	 * @param name
+	 * @throws Exception
+	 */
+	private void foreachColChild(Cell cell, Map<String, Object> map, String name,TemplateExportParams params) throws Exception {
+		boolean isCreate = name.contains(FOREACH_COL_VALUE);
+		name = name.replace(FOREACH_COL_CHILD, EMPTY).replace(START_STR,
+				EMPTY);
+		String[] keys  = name.replaceAll("\\s+", " ").trim().split(" ");
+		Collection<?> datas = (Collection<?>) PoiPublicUtil.getParamsValue(keys[0], map);
+		Object[] columnsInfo = getAllDataColumns(cell, name.replace(keys[0], EMPTY),
+				mergedRegionHelper);
+		if (datas == null) {
+			return;
+		}
+		Iterator<?> its     = datas.iterator();
+		int         rowspan = (Integer) columnsInfo[0], colspan = (Integer) columnsInfo[1];
+		@SuppressWarnings("unchecked")
+		List<ExcelForEachParams> columns = (List<ExcelForEachParams>) columnsInfo[2];
+		while (its.hasNext()) {
+			Object t = its.next();
+			setForeachRowCellValue(true, cell.getRow(), cell.getColumnIndex(), t, columns, map,
+					rowspan, colspan, mergedRegionHelper);
+			if (cell.getRow().getCell(cell.getColumnIndex() + colspan) == null) {
+				cell.getRow().createCell(cell.getColumnIndex() + colspan);
+			}
+			cell = cell.getRow().getCell(cell.getColumnIndex() + colspan);
+		}
+		if (isCreate) {
+			cell = cell.getRow().getCell(cell.getColumnIndex() - 1);
+			cell.setCellValue(cell.getStringCellValue() + END_STR);
+		}
+	}
+
 	/**
 	 * 循环迭代创建,遍历row
 	 *
@@ -649,6 +713,10 @@ public final class ExcelExportOfTemplateUtil extends ExcelExportBase {
 					createImageCell(row.getCell(ci), img.getHeight(), img.getRowspan(), img.getColspan(), img.getUrl(), img.getData());
 				} else if (isNumber && StringUtils.isNotEmpty(val)) {
 					row.getCell(ci).setCellValue(Double.parseDouble(val));
+				} else if (obj != null && val.contains(FOREACH_COL_CHILD)) {
+					//20240823 增加子列表循环列支持
+					String name = val.replace(FOREACH_COL_CHILD, EMPTY).replace(START_STR, EMPTY);
+					setForEachLoopColumnCellValue(row, ci, (Collection) t, columns, params, map, rowspan, colspan, mergedRegionHelper, name);
 				} else {
 					try {
 						row.getCell(ci).setCellValue(val);
@@ -752,6 +820,80 @@ public final class ExcelExportOfTemplateUtil extends ExcelExportBase {
 		}
 		return new int[]{nums, temp.size(), ci};
 	}
+
+
+	/**
+	 * c_fe子列表列循环
+	 * @param row
+	 * @param columnIndex
+	 * @param t
+	 * @param columns
+	 * @param params
+	 * @param map
+	 * @param rowspan
+	 * @param colspan
+	 * @param mergedRegionHelper
+	 * @param name
+	 * @throws Exception
+	 */
+	private void setForEachLoopColumnCellValue (Row row, int columnIndex, Collection t, List<ExcelForEachParams> columns,
+											ExcelForEachParams params, Map<String, Object> map,
+											int rowspan, int colspan,
+											MergedRegionHelper mergedRegionHelper, String name) throws Exception {
+		String[] keys  = name.replaceAll("\\s+", " ").trim().split(" ");
+		Collection<?> datas = (Collection<?>) PoiPublicUtil.getParamsValue(keys[0], t);
+		Iterator<?> iterator = datas.iterator();
+		List<String> loopColumns = new ArrayList<>();
+		if (iterator.hasNext()) {
+			Object childData = iterator.next();
+			map.put(keys[1], childData);
+			String tempStr = keys[2];
+			while (params.getName().contains(keys[1] + ".")) {
+				loopColumns.add(tempStr);
+				Object childVal = eval(tempStr, map);
+				if (childVal instanceof ImageEntity) {
+					ImageEntity img = (ImageEntity) childVal;
+					row.getCell(columnIndex).setCellValue("");
+					if (img.getRowspan() > 1 || img.getColspan() > 1) {
+						img.setHeight(0);
+						row.getCell(columnIndex).getSheet().addMergedRegion(new CellRangeAddress(row.getCell(columnIndex).getRowIndex(),
+								row.getCell(columnIndex).getRowIndex() + img.getRowspan() - 1, row.getCell(columnIndex).getColumnIndex(), row.getCell(columnIndex).getColumnIndex() + img.getColspan() - 1));
+					}
+					createImageCell(row.getCell(columnIndex), img.getHeight(), img.getRowspan(), img.getColspan(), img.getUrl(), img.getData());
+				} else {
+					row.getCell(columnIndex).setCellValue(childVal == null ? "" : childVal.toString());
+				}
+				columnIndex = columnIndex + params.getColspan();
+				if (columns.size() > columnIndex) {
+					params = columns.get(columnIndex);
+					tempStr = params.getName();
+				} else {
+					break;
+				}
+			}
+		}
+		while (iterator.hasNext()){
+			Object childData = iterator.next();
+			map.put(keys[1], childData);
+			for (String loopColumn : loopColumns) {
+				Object childVal = eval(loopColumn, map);
+				if (childVal instanceof ImageEntity) {
+					ImageEntity img = (ImageEntity) childVal;
+					row.getCell(columnIndex).setCellValue("");
+					if (img.getRowspan() > 1 || img.getColspan() > 1) {
+						img.setHeight(0);
+						row.getCell(columnIndex).getSheet().addMergedRegion(new CellRangeAddress(row.getCell(columnIndex).getRowIndex(),
+								row.getCell(columnIndex).getRowIndex() + img.getRowspan() - 1, row.getCell(columnIndex).getColumnIndex(), row.getCell(columnIndex).getColumnIndex() + img.getColspan() - 1));
+					}
+					createImageCell(row.getCell(columnIndex), img.getHeight(), img.getRowspan(), img.getColspan(), img.getUrl(), img.getData());
+				} else {
+					row.getCell(columnIndex).setCellValue(childVal == null ? "" : childVal.toString());
+				}
+				columnIndex++;
+			}
+		}
+
+	}
 	/**
 	 * 创建并返回第一个Row
 	 *
@@ -783,7 +925,7 @@ public final class ExcelExportOfTemplateUtil extends ExcelExportBase {
 		List<ExcelForEachParams> temp = new ArrayList<>();
 		for (int i = 0; i < columns.size(); i++) {
 			//先置为不是集合
-			columns.get(i).setCollectCell(false);
+			if(columns.get(i) != null) columns.get(i).setCollectCell(false);
 			if (columns.get(i) == null || columns.get(i).getName().contains(collectName)) {
 				temp.add(columns.get(i));
 				if (columns.get(i).getTempName() == null) {
