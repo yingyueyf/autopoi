@@ -716,7 +716,9 @@ public final class ExcelExportOfTemplateUtil extends ExcelExportBase {
 				} else if (obj != null && val.contains(FOREACH_COL_CHILD)) {
 					//20240823 增加子列表循环列支持
 					String name = val.replace(FOREACH_COL_CHILD, EMPTY).replace(START_STR, EMPTY);
-					setForEachLoopColumnCellValue(row, ci, (Collection) t, columns, params, map, rowspan, colspan, mergedRegionHelper, name);
+					int[] loopColumnResult = setForEachLoopColumnCellValue(row, ci, t, columns, params, map, rowspan, colspan, mergedRegionHelper, name, i);
+					ci = loopColumnResult[0];
+					i = loopColumnResult[1];
 				} else {
 					try {
 						row.getCell(ci).setCellValue(val);
@@ -836,11 +838,11 @@ public final class ExcelExportOfTemplateUtil extends ExcelExportBase {
 	 * @param name
 	 * @throws Exception
 	 */
-	private void setForEachLoopColumnCellValue (Row row, int columnIndex, Collection t, List<ExcelForEachParams> columns,
+	private int[] setForEachLoopColumnCellValue (Row row, int columnIndex, Object t, List<ExcelForEachParams> columns,
 											ExcelForEachParams params, Map<String, Object> map,
 											int rowspan, int colspan,
-											MergedRegionHelper mergedRegionHelper, String name) throws Exception {
-		String[] keys  = name.replaceAll("\\s+", " ").trim().split(" ");
+											MergedRegionHelper mergedRegionHelper, String name, int i) throws Exception {
+		String[] keys  = name.replaceAll("\\s+", " ").trim().replace(teplateParams.getTempParams()+".", EMPTY).split(" ");
 		Collection<?> datas = (Collection<?>) PoiPublicUtil.getParamsValue(keys[0], t);
 		Iterator<?> iterator = datas.iterator();
 		List<String> loopColumns = new ArrayList<>();
@@ -864,6 +866,8 @@ public final class ExcelExportOfTemplateUtil extends ExcelExportBase {
 					row.getCell(columnIndex).setCellValue(childVal == null ? "" : childVal.toString());
 				}
 				columnIndex = columnIndex + params.getColspan();
+				row.createCell(columnIndex);
+				i++;
 				if (columns.size() > columnIndex) {
 					params = columns.get(columnIndex);
 					tempStr = params.getName();
@@ -889,9 +893,11 @@ public final class ExcelExportOfTemplateUtil extends ExcelExportBase {
 				} else {
 					row.getCell(columnIndex).setCellValue(childVal == null ? "" : childVal.toString());
 				}
-				columnIndex++;
+				row.createCell(++columnIndex);
+				i++;
 			}
 		}
+		return new int[]{columnIndex, i};
 
 	}
 	/**
