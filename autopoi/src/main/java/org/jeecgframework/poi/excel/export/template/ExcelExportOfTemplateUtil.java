@@ -15,6 +15,10 @@
  */
 package org.jeecgframework.poi.excel.export.template;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.util.*;
 
@@ -22,10 +26,12 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.poi.hssf.usermodel.HSSFClientAnchor;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddress;
+import org.apache.poi.util.IOUtils;
 import org.apache.poi.xssf.usermodel.XSSFClientAnchor;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.jeecgframework.poi.cache.ExcelCache;
 import org.jeecgframework.poi.cache.ImageCache;
+import org.jeecgframework.poi.cache.manager.POICacheManager;
 import org.jeecgframework.poi.entity.ImageEntity;
 import org.jeecgframework.poi.excel.annotation.ExcelTarget;
 import org.jeecgframework.poi.excel.entity.TemplateExportParams;
@@ -44,6 +50,8 @@ import static org.jeecgframework.poi.util.PoiElUtil.*;
 import org.jeecgframework.poi.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import javax.imageio.ImageIO;
 
 /**
  * Excel 导出根据模板导出
@@ -308,8 +316,15 @@ public final class ExcelExportOfTemplateUtil extends ExcelExportBase {
 			}
 			while (oldString.contains(START_STR)) {
 				params = oldString.substring(oldString.indexOf(START_STR) + 2, oldString.indexOf(END_STR));
-
-				oldString = oldString.replace(START_STR + params + END_STR, eval(params, map).toString());
+				Object eval = eval(params, map);
+				if (eval instanceof ImageEntity) {
+					ImageEntity img = (ImageEntity) eval;
+					cell.setCellValue("");
+					oldString = "";
+					createImageCell(cell, img.getHeight(), img.getWidth(), img.getUrl());
+				} else {
+					oldString = oldString.replace(START_STR + params + END_STR, eval(params, map).toString());
+				}
 			}
 			// 如何是数值 类型,就按照数值类型进行设置
 			if (isNumber && StringUtils.isNotBlank(oldString)) {
@@ -749,6 +764,59 @@ public final class ExcelExportOfTemplateUtil extends ExcelExportBase {
 			row = row.getSheet().getRow(row.getRowNum() + 1);
 		}
 		return new int[]{loopSize, loopCi};
+	}
+
+	/**
+	 * 模板导出图片
+	 * @param cell
+	 * @param height
+	 * @param width
+	 * @param imagePath
+	 */
+	public void createImageCell(Cell cell, double height, double width, String imagePath) throws IOException {
+/* if (height > cell.getRow().getHeight()) {
+			cell.getRow().setHeight((short) height);
+		}*/
+		ClientAnchor anchor;
+		if (type.equals(ExcelType.HSSF)) {
+			anchor = new HSSFClientAnchor(0, 0, 1023, 255, (short) cell.getColumnIndex(), cell.getRow().getRowNum(), (short) (cell.getColumnIndex() + 1),
+					cell.getRow().getRowNum() + 1);
+		} else {
+			anchor = new XSSFClientAnchor(15, 15, 1010, 245, (short) cell.getColumnIndex(), cell.getRow().getRowNum(), (short) (cell.getColumnIndex() + 1),
+					cell.getRow().getRowNum() + 1);
+		}
+		if (StringUtils.isNotEmpty(imagePath)) {
+			byte[] data = templateGetImage(imagePath);
+			Workbook workbook = cell.getSheet().getWorkbook();
+			int imgHeight = ImageIO.read(new ByteArrayInputStream(data)).getHeight();
+			int imgWidth = ImageIO.read(new ByteArrayInputStream(data)).getWidth();
+
+			imgHeight = (int) Math.round((imgHeight * (30 * 13) * 1.0 / imgWidth));
+			cell.getRow().getSheet().setColumnWidth(cell.getColumnIndex(), 30 * 256);
+			cell.getRow().setHeight((short) (imgHeight / 2 * 18));
+			anchor.setAnchorType(ClientAnchor.AnchorType.DONT_MOVE_AND_RESIZE);
+			//update-end-author:z date:20240727 for:获取图片宽高，按注解给定比例缩放
+			Drawing patriarch = PoiExcelGraphDataUtil.getDrawingPatriarch(cell.getSheet());
+			patriarch.createPicture(anchor, cell.getRow().getSheet().getWorkbook().addPicture(data, getImageType(data)));
+		}
+	}
+
+	public static byte[] templateGetImage(String imagePath) {
+		InputStream is  = POICacheManager.getFile(imagePath);
+		final ByteArrayOutputStream swapStream   = new ByteArrayOutputStream();
+		try {
+			int ch;
+			while ((ch = is.read()) != -1) {
+				swapStream.write(ch);
+			}
+			return swapStream.toByteArray();
+		} catch (Exception e) {
+			LOGGER.error(e.getMessage(), e);
+			return null;
+		} finally {
+			IOUtils.closeQuietly(is);
+			IOUtils.closeQuietly(swapStream);
+		}
 	}
 	/**
 	 * 图片类型的Cell
