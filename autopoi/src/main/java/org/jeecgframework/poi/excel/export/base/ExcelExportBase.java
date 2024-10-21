@@ -214,12 +214,6 @@ public abstract class ExcelExportBase extends ExportBase {
 	 */
 	public void createImageCell(Drawing patriarch, ExcelExportEntity entity, Row row, int i, String imagePath, Object obj) throws Exception {
 		row.createCell(i);
-		ClientAnchor anchor;
-		if (type.equals(ExcelType.HSSF)) {
-			anchor = new HSSFClientAnchor(0, 0, 1023, 255, (short) i, row.getRowNum(), (short) i, row.getRowNum());
-		} else {
-			anchor = new XSSFClientAnchor(0, 0, 0, 0, (short) i, row.getRowNum(), (short) (i + 1), row.getRowNum() + 1);
-		}
 
 		if (StringUtils.isEmpty(imagePath)) {
 			return;
@@ -293,6 +287,14 @@ public abstract class ExcelExportBase extends ExportBase {
 			imgHeight = (int) Math.round((imgHeight * (30 * 13) * 1.0 / imgWidth));
 			row.getSheet().setColumnWidth(i, 30 * 256);
 			row.setHeight((short) (imgHeight / 2 * 18));
+
+			//锚定图片位置
+			ClientAnchor anchor;
+			if (type.equals(ExcelType.HSSF)) {
+				anchor = new HSSFClientAnchor(15, 15, 1008, 240, (short) i, row.getRowNum(), (short) i, row.getRowNum());
+			} else {
+				anchor = new XSSFClientAnchor(15, 15, 1008, 240, (short) i, row.getRowNum(), (short) (i + 1), row.getRowNum() + 1);
+			}
 			anchor.setAnchorType(ClientAnchor.AnchorType.DONT_MOVE_AND_RESIZE);
 			//update-end-author:z date:20240727 for:获取图片宽高，按注解给定比例缩放
 			patriarch.createPicture(anchor, row.getSheet().getWorkbook().addPicture(value, getImageType(value)));

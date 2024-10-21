@@ -791,10 +791,6 @@ public final class ExcelExportOfTemplateUtil extends ExcelExportBase {
 	 * @param imagePath
 	 */
 	public void createImageCell(Cell cell, Integer height, Integer width, String imagePath, byte[] dataByte) throws IOException {
-/* if (height > cell.getRow().getHeight()) {
-			cell.getRow().setHeight((short) height);
-		}*/
-
 		byte[] data = null;
 		if (StringUtils.isNotEmpty(imagePath)) {
 			if (imagePath.contains("http")) {
@@ -832,32 +828,19 @@ public final class ExcelExportOfTemplateUtil extends ExcelExportBase {
 		if (width == null || width == 0 ){
 			width = ImageIO.read(new ByteArrayInputStream(data)).getWidth();
 		}
-		int imageHeight = height;
-		int imageWidth = width;
 		height = (int) Math.round((height * (30 * 13) * 1.0 / width));
 		//30*256 表示30个字符的宽度（默认Arial字体，10号）
 		cell.getRow().getSheet().setColumnWidth(cell.getColumnIndex(), 30 * 256);
 		cell.getRow().setHeight((short) (height / 2 * 18));
-
-		// 获取单元格的宽高
-		int cellWidth = (int) ((cell.getRow().getSheet().getColumnWidth(cell.getColumnIndex()) / 256) * 7);  // 单元格宽度像素
-		int cellHeight = (int) (cell.getRow().getHeight() / 0.75);  // 单元格高度像素
-
-		// 计算缩放比例
-		double widthScale = (double) cellWidth / imageWidth;
-		double heightScale = (double) cellHeight / imageHeight;
-		double scale = Math.min(widthScale, heightScale);
-
-		// 设置图片的锚点
+		// 锚定图片
 		ClientAnchor anchor;
 		if (type.equals(ExcelType.HSSF)) {
-			anchor = new HSSFClientAnchor(0, 0, 1023, 255, (short) cell.getColumnIndex(), cell.getRow().getRowNum(), (short) (cell.getColumnIndex() + 1),
-					cell.getRow().getRowNum() + 1);
+			anchor = new HSSFClientAnchor(15, 15, 1008, 240, (short) cell.getColumnIndex(), cell.getRow().getRowNum(), (short) (cell.getColumnIndex()),
+					cell.getRow().getRowNum());
 		} else {
-			anchor = new XSSFClientAnchor(0, 0, 1023, 255, (short) cell.getColumnIndex(), cell.getRow().getRowNum(), (short) (cell.getColumnIndex() + 1),
-					cell.getRow().getRowNum() + 1);
+			anchor = new XSSFClientAnchor(15, 15, 1008, 240, (short) cell.getColumnIndex(), cell.getRow().getRowNum(), (short) (cell.getColumnIndex()),
+					cell.getRow().getRowNum());
 		}
-		// 锚定图片
 		anchor.setAnchorType(ClientAnchor.AnchorType.DONT_MOVE_AND_RESIZE);
 
 		// 插入图片
