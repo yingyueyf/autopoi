@@ -298,8 +298,6 @@ public abstract class ExcelExportBase extends ExportBase {
 			patriarch.createPicture(anchor, row.getSheet().getWorkbook().addPicture(value, getImageType(value)));
 		}
 		//update-end-author:taoyan date:20200302 for:【多任务】online 专项集中问题 LOWCOD-159
-
-
 	}
 
 	/**

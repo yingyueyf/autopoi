@@ -20,6 +20,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Field;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.security.SecureRandom;
 import java.util.*;
 
 import org.apache.commons.lang3.StringUtils;
@@ -52,6 +55,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.imageio.ImageIO;
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
 
 /**
  * Excel 导出根据模板导出
@@ -174,13 +180,13 @@ public final class ExcelExportOfTemplateUtil extends ExcelExportBase {
 			// 创建表格样式
 			setExcelExportStyler((IExcelExportStyler) teplateParams.getStyle().getConstructor(Workbook.class).newInstance(wb));
 			// step 3. 解析模板
-			for (int i = 0, le = params.isScanAllsheet() ? wb.getNumberOfSheets() : params.getSheetNum().length; i < le; i++) {
-				if (params.getSheetName() != null && params.getSheetName().length > i && StringUtils.isNotEmpty(params.getSheetName()[i])) {
-					wb.setSheetName(i, params.getSheetName()[i]);
-				}
-				tempCreateCellSet.clear();
-				parseTemplate(wb.getSheetAt(i), map, params);
-			}
+//			for (int i = 0, le = params.isScanAllsheet() ? wb.getNumberOfSheets() : params.getSheetNum().length; i < le; i++) {
+//				if (params.getSheetName() != null && params.getSheetName().length > i && StringUtils.isNotEmpty(params.getSheetName()[i])) {
+//					wb.setSheetName(i, params.getSheetName()[i]);
+//				}
+//				tempCreateCellSet.clear();
+//				parseTemplate(wb.getSheetAt(i), map, params, 1);
+//			}
 			if (dataSet != null) {
 				// step 4. 正常的数据填充
 				dataHanlder = params.getDataHanlder();
@@ -188,6 +194,15 @@ public final class ExcelExportOfTemplateUtil extends ExcelExportBase {
 					needHanlderList = Arrays.asList(dataHanlder.getNeedHandlerFields());
 				}
 				addDataToSheet(pojoClass, dataSet, wb.getSheetAt(params.getDataSheetNum()), wb);
+			}
+			//解决图片在数据下方时，图片位置不正确的问题
+			// step 5. 解析模板，添加导出图片
+			for (int i = 0, le = params.isScanAllsheet() ? wb.getNumberOfSheets() : params.getSheetNum().length; i < le; i++) {
+				if (params.getSheetName() != null && params.getSheetName().length > i && StringUtils.isNotEmpty(params.getSheetName()[i])) {
+					wb.setSheetName(i, params.getSheetName()[i]);
+				}
+				tempCreateCellSet.clear();
+				parseTemplate(wb.getSheetAt(i), map, params);
 			}
 		} catch (Exception e) {
 			LOGGER.error(e.getMessage(), e);
@@ -321,7 +336,7 @@ public final class ExcelExportOfTemplateUtil extends ExcelExportBase {
 					ImageEntity img = (ImageEntity) eval;
 					cell.setCellValue("");
 					oldString = "";
-					createImageCell(cell, img.getHeight(), img.getWidth(), img.getUrl());
+					createImageCell(cell, img.getHeight(), img.getWidth(), img.getUrl(), img.getData());
 				} else {
 					oldString = oldString.replace(START_STR + params + END_STR, eval(params, map).toString());
 				}
@@ -769,38 +784,85 @@ public final class ExcelExportOfTemplateUtil extends ExcelExportBase {
 	}
 
 	/**
-	 * 模板导出图片
+	 * 模板导出图片，支持网络图片、本地图片、二进制
 	 * @param cell
 	 * @param height
 	 * @param width
 	 * @param imagePath
 	 */
-	public void createImageCell(Cell cell, double height, double width, String imagePath) throws IOException {
+	public void createImageCell(Cell cell, Integer height, Integer width, String imagePath, byte[] dataByte) throws IOException {
 /* if (height > cell.getRow().getHeight()) {
 			cell.getRow().setHeight((short) height);
 		}*/
+
+		byte[] data = null;
+		if (StringUtils.isNotEmpty(imagePath)) {
+			if (imagePath.contains("http")) {
+				//新增逻辑 网络图片4
+				try {
+					if (imagePath.indexOf(",") != -1) {
+						if (imagePath.startsWith(",")) {
+							imagePath = imagePath.substring(1);
+						}
+						String[] images = imagePath.split(",");
+						imagePath = images[0];
+					}
+					if (imagePath.startsWith("https")) {
+						data = getImageDataByHttps(imagePath);
+					} else {
+						data = getImageDataByHttp(imagePath);
+					}
+				} catch (Exception exception) {
+					LOGGER.warn(exception.getMessage());
+					//exception.printStackTrace();
+				}
+			} else {
+				data = templateGetImage(imagePath);
+			}
+		}
+		if (dataByte != null) {
+			data = dataByte;
+		}
+		if (data == null) {
+			return;
+		}
+		if (height == null || height == 0 ){
+			height = ImageIO.read(new ByteArrayInputStream(data)).getHeight();
+		}
+		if (width == null || width == 0 ){
+			width = ImageIO.read(new ByteArrayInputStream(data)).getWidth();
+		}
+		int imageHeight = height;
+		int imageWidth = width;
+		height = (int) Math.round((height * (30 * 13) * 1.0 / width));
+		//30*256 表示30个字符的宽度（默认Arial字体，10号）
+		cell.getRow().getSheet().setColumnWidth(cell.getColumnIndex(), 30 * 256);
+		cell.getRow().setHeight((short) (height / 2 * 18));
+
+		// 获取单元格的宽高
+		int cellWidth = (int) ((cell.getRow().getSheet().getColumnWidth(cell.getColumnIndex()) / 256) * 7);  // 单元格宽度像素
+		int cellHeight = (int) (cell.getRow().getHeight() / 0.75);  // 单元格高度像素
+
+		// 计算缩放比例
+		double widthScale = (double) cellWidth / imageWidth;
+		double heightScale = (double) cellHeight / imageHeight;
+		double scale = Math.min(widthScale, heightScale);
+
+		// 设置图片的锚点
 		ClientAnchor anchor;
 		if (type.equals(ExcelType.HSSF)) {
 			anchor = new HSSFClientAnchor(0, 0, 1023, 255, (short) cell.getColumnIndex(), cell.getRow().getRowNum(), (short) (cell.getColumnIndex() + 1),
 					cell.getRow().getRowNum() + 1);
 		} else {
-			anchor = new XSSFClientAnchor(15, 15, 1010, 245, (short) cell.getColumnIndex(), cell.getRow().getRowNum(), (short) (cell.getColumnIndex() + 1),
+			anchor = new XSSFClientAnchor(0, 0, 1023, 255, (short) cell.getColumnIndex(), cell.getRow().getRowNum(), (short) (cell.getColumnIndex() + 1),
 					cell.getRow().getRowNum() + 1);
 		}
-		if (StringUtils.isNotEmpty(imagePath)) {
-			byte[] data = templateGetImage(imagePath);
-			Workbook workbook = cell.getSheet().getWorkbook();
-			int imgHeight = ImageIO.read(new ByteArrayInputStream(data)).getHeight();
-			int imgWidth = ImageIO.read(new ByteArrayInputStream(data)).getWidth();
+		// 锚定图片
+		anchor.setAnchorType(ClientAnchor.AnchorType.DONT_MOVE_AND_RESIZE);
 
-			imgHeight = (int) Math.round((imgHeight * (30 * 13) * 1.0 / imgWidth));
-			cell.getRow().getSheet().setColumnWidth(cell.getColumnIndex(), 30 * 256);
-			cell.getRow().setHeight((short) (imgHeight / 2 * 18));
-			anchor.setAnchorType(ClientAnchor.AnchorType.DONT_MOVE_AND_RESIZE);
-			//update-end-author:z date:20240727 for:获取图片宽高，按注解给定比例缩放
-			Drawing patriarch = PoiExcelGraphDataUtil.getDrawingPatriarch(cell.getSheet());
-			patriarch.createPicture(anchor, cell.getRow().getSheet().getWorkbook().addPicture(data, getImageType(data)));
-		}
+		// 插入图片
+		Drawing patriarch = PoiExcelGraphDataUtil.getDrawingPatriarch(cell.getSheet());
+		patriarch.createPicture(anchor, cell.getRow().getSheet().getWorkbook().addPicture(data, getImageType(data)));
 	}
 
 	public static byte[] templateGetImage(String imagePath) {
@@ -820,6 +882,62 @@ public final class ExcelExportOfTemplateUtil extends ExcelExportBase {
 			IOUtils.closeQuietly(swapStream);
 		}
 	}
+
+	/**
+	 * 通过http地址获取图片数据
+	 * @param imagePath
+	 * @return
+	 * @throws Exception
+	 */
+	private byte[] getImageDataByHttp(String imagePath) throws Exception {
+		URL url = new URL(imagePath);
+		HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+		conn.setRequestMethod("GET");
+		conn.setConnectTimeout(5 * 1000);
+		InputStream inStream = conn.getInputStream();
+		byte[] value = readInputStream(inStream);
+		return value;
+	}
+
+	/**
+	 * 通过https地址获取图片数据
+	 * @param imagePath
+	 * @return
+	 * @throws Exception
+	 */
+	private byte[] getImageDataByHttps(String imagePath) throws Exception {
+		SSLContext sslcontext = SSLContext.getInstance("SSL","SunJSSE");
+		sslcontext.init(null, new TrustManager[]{new MyX509TrustManager()}, new SecureRandom());
+		URL url = new URL(imagePath);
+		HttpsURLConnection conn = (HttpsURLConnection) url.openConnection();
+		conn.setSSLSocketFactory(sslcontext.getSocketFactory());
+		conn.setRequestMethod("GET");
+		conn.setConnectTimeout(5 * 1000);
+		InputStream inStream = conn.getInputStream();
+		byte[] value = readInputStream(inStream);
+		return value;
+	}
+	/**
+	 * inStream读取到字节数组
+	 * @param inStream
+	 * @return
+	 * @throws Exception
+	 */
+	private byte[] readInputStream(InputStream inStream) throws Exception {
+		if(inStream==null){
+			return null;
+		}
+		ByteArrayOutputStream outStream = new ByteArrayOutputStream();
+		byte[] buffer = new byte[1024];
+		int len = 0;
+		//每次读取的字符串长度，如果为-1，代表全部读取完毕
+		while ((len = inStream.read(buffer)) != -1) {
+			outStream.write(buffer, 0, len);
+		}
+		inStream.close();
+		return outStream.toByteArray();
+	}
+
 	/**
 	 * 图片类型的Cell
 	 */
