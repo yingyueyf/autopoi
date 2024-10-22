@@ -185,7 +185,7 @@ public final class ExcelExportOfTemplateUtil extends ExcelExportBase {
 //					wb.setSheetName(i, params.getSheetName()[i]);
 //				}
 //				tempCreateCellSet.clear();
-//				parseTemplate(wb.getSheetAt(i), map, params, 1);
+//				parseTemplate(wb.getSheetAt(i), map, params);
 //			}
 			if (dataSet != null) {
 				// step 4. 正常的数据填充
@@ -294,6 +294,7 @@ public final class ExcelExportOfTemplateUtil extends ExcelExportBase {
 			for (int i = row.getFirstCellNum(); i < row.getLastCellNum(); i++) {
 				cell = row.getCell(i);
 				if (row.getCell(i) != null && (cell.getCellTypeEnum() == CellType.STRING || cell.getCellTypeEnum() == CellType.NUMERIC)) {
+					CellType hisCellTypeEnum = cell.getCellTypeEnum();
 					cell.setCellType(CellType.STRING);
 					String text = cell.getStringCellValue();
 					if (text.contains(IF_DELETE)) {
@@ -301,6 +302,9 @@ public final class ExcelExportOfTemplateUtil extends ExcelExportBase {
 							PoiSheetUtility.deleteColumn(sheet, i);
 						}
 						cell.setCellValue("");
+					} else if (hisCellTypeEnum == CellType.NUMERIC && canConvertToNumber(cell.getStringCellValue())) {
+						double number = Double.parseDouble(cell.getStringCellValue());
+						cell.setCellValue(number);
 					}
 				}
 			}
@@ -319,6 +323,7 @@ public final class ExcelExportOfTemplateUtil extends ExcelExportBase {
 			return;
 		}
 		String oldString;
+		CellType hisCellTypeEnum = cell.getCellTypeEnum();
 		cell.setCellType(CellType.STRING);
 		oldString = cell.getStringCellValue();
 		if (oldString != null && oldString.contains(START_STR) && !oldString.contains(FOREACH)) {
@@ -348,6 +353,9 @@ public final class ExcelExportOfTemplateUtil extends ExcelExportBase {
 			} else {
 				cell.setCellValue(oldString);
 			}
+		} else if (hisCellTypeEnum == CellType.NUMERIC && canConvertToNumber(cell.getStringCellValue())) {
+			double number = Double.parseDouble(cell.getStringCellValue());
+			cell.setCellValue(number);
 		}
 		// 判断foreach 这种方法
 		if (oldString != null && oldString.contains(FOREACH)) {
@@ -358,6 +366,15 @@ public final class ExcelExportOfTemplateUtil extends ExcelExportBase {
 
 	private boolean isNumber(String text) {
 		return text.startsWith(NUMBER_SYMBOL) || text.contains("{" + NUMBER_SYMBOL) || text.contains(" " + NUMBER_SYMBOL);
+	}
+
+	public boolean canConvertToNumber(String a) {
+		try {
+			Double.parseDouble(a);
+			return true;
+		} catch (NumberFormatException e) {
+			return false;
+		}
 	}
 
 	/**
@@ -841,7 +858,7 @@ public final class ExcelExportOfTemplateUtil extends ExcelExportBase {
 			anchor = new XSSFClientAnchor(15, 15, 1008, 240, (short) cell.getColumnIndex(), cell.getRow().getRowNum(), (short) (cell.getColumnIndex()),
 					cell.getRow().getRowNum());
 		}
-		anchor.setAnchorType(ClientAnchor.AnchorType.DONT_MOVE_AND_RESIZE);
+		anchor.setAnchorType(ClientAnchor.AnchorType.MOVE_DONT_RESIZE);
 
 		// 插入图片
 		Drawing patriarch = PoiExcelGraphDataUtil.getDrawingPatriarch(cell.getSheet());
